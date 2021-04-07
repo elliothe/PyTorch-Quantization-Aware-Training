@@ -11,7 +11,7 @@ import time
 import copy
 import numpy as np
 
-from resnet import resnet18
+from resnet import resnet20
 
 
 def set_random_seeds(random_seed=0):
@@ -26,6 +26,8 @@ def set_random_seeds(random_seed=0):
 def prepare_dataloader(num_workers=8,
                        train_batch_size=128,
                        eval_batch_size=256):
+                       
+    dataset_path='/home/elliot/dataset/pytorch/cifar10'
 
     train_transform = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
@@ -43,16 +45,27 @@ def prepare_dataloader(num_workers=8,
                              std=(0.229, 0.224, 0.225))
     ])
 
-    train_set = torchvision.datasets.CIFAR10(root="data",
+    train_set = torchvision.datasets.CIFAR10(root=dataset_path,
                                              train=True,
                                              download=True,
                                              transform=train_transform)
     # We will use test set for validation and test in this project.
     # Do not use test set for validation in practice!
-    test_set = torchvision.datasets.CIFAR10(root="data",
+    test_set = torchvision.datasets.CIFAR10(root=dataset_path,
                                             train=False,
                                             download=True,
                                             transform=test_transform)
+
+    # train_set = torchvision.datasets.CIFAR10(root="data",
+    #                                          train=True,
+    #                                          download=True,
+    #                                          transform=train_transform)
+    # # We will use test set for validation and test in this project.
+    # # Do not use test set for validation in practice!
+    # test_set = torchvision.datasets.CIFAR10(root="data",
+    #                                         train=False,
+    #                                         download=True,
+    #                                         transform=test_transform)
 
     train_sampler = torch.utils.data.RandomSampler(train_set)
     test_sampler = torch.utils.data.SequentialSampler(test_set)
@@ -249,7 +262,8 @@ def create_model(num_classes=10):
     # The number of channels in ResNet18 is divisible by 8.
     # This is required for fast GEMM integer matrix multiplication.
     # model = torchvision.models.resnet18(pretrained=False)
-    model = resnet18(num_classes=num_classes, pretrained=False)
+    # model = resnet18(num_classes=num_classes, pretrained=False)
+    model = resnet20()
 
     # We would use the pretrained ResNet18 as a feature extractor.
     # for param in model.parameters():
@@ -262,9 +276,9 @@ def create_model(num_classes=10):
     return model
 
 
-class QuantizedResNet18(nn.Module):
+class QuantizedResNet20(nn.Module):
     def __init__(self, model_fp32):
-        super(QuantizedResNet18, self).__init__()
+        super(QuantizedResNet20, self).__init__()
         # QuantStub converts tensors from floating point to quantized.
         # This will only be used for inputs.
         self.quant = torch.quantization.QuantStub()
@@ -318,8 +332,8 @@ def main():
     cpu_device = torch.device("cpu:0")
 
     model_dir = "saved_models"
-    model_filename = "resnet18_cifar10.pt"
-    quantized_model_filename = "resnet18_quantized_cifar10.pt"
+    model_filename = "resnet20_cifar10.pt"
+    quantized_model_filename = "resnet20_quantized_cifar10.pt"
     model_filepath = os.path.join(model_dir, model_filename)
     quantized_model_filepath = os.path.join(model_dir,
                                             quantized_model_filename)
@@ -394,10 +408,10 @@ def main():
 
     # Prepare the model for quantization aware training. This inserts observers in
     # the model that will observe activation tensors during calibration.
-    quantized_model = QuantizedResNet18(model_fp32=fused_model)
+    quantized_model = QuantizedResNet20(model_fp32=fused_model)
     # Using un-fused model will fail.
     # Because there is no quantized layer implementation for a single batch normalization layer.
-    # quantized_model = QuantizedResNet18(model_fp32=model)
+    # quantized_model = QuantizedResNet20(model_fp32=model)
     # Select quantization schemes from
     # https://pytorch.org/docs/stable/quantization-support.html
     quantization_config = torch.quantization.get_default_qconfig("fbgemm")
