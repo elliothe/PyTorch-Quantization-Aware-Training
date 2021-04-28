@@ -331,7 +331,8 @@ def main():
     cuda_device = torch.device("cuda:0")
     cpu_device = torch.device("cpu:0")
 
-    model_dir = "saved_models"
+    # model_dir = "saved_models"
+    model_dir = "/home/elliot/Documents/github/ML-model-locking/3rdparty/PyTorch-Quantization-Aware-Training/saved_models"
     model_filename = "resnet20_cifar10.pt"
     quantized_model_filename = "resnet20_quantized_cifar10.pt"
     model_filepath = os.path.join(model_dir, model_filename)
@@ -348,19 +349,21 @@ def main():
                                                    eval_batch_size=256)
 
     # Train model.
-    print("Training Model...")
-    model = train_model(model=model,
-                        train_loader=train_loader,
-                        test_loader=test_loader,
-                        device=cuda_device,
-                        learning_rate=1e-1,
-                        num_epochs=200)
+    # print("Training Model...")
+    # model = train_model(model=model,
+    #                     train_loader=train_loader,
+    #                     test_loader=test_loader,
+    #                     device=cuda_device,
+    #                     learning_rate=1e-1,
+    #                     num_epochs=200)
+
     # Save model.
-    save_model(model=model, model_dir=model_dir, model_filename=model_filename)
+    # save_model(model=model, model_dir=model_dir, model_filename=model_filename)
     # Load a pretrained model.
     model = load_model(model=model,
                        model_filepath=model_filepath,
                        device=cuda_device)
+
     # Move the model to CPU since static quantization does not support CUDA currently.
     model.to(cpu_device)
     # Make a copy of the model for layer fusion
@@ -371,21 +374,31 @@ def main():
     # Otherwise the quantization aware training will not work correctly.
     fused_model.train()
 
-    # Fuse the model in place rather manually.
+    # Fuse the model in place rather manually. 
+    # change the name for resnet20
     fused_model = torch.quantization.fuse_modules(fused_model,
-                                                  [["conv1", "bn1", "relu"]],
+                                                  [["conv_1_3x3", "bn_1", "relu"]],
                                                   inplace=True)
+    # for module_name, module in fused_model.named_children():
+    #     if "layer" in module_name:
+    #         for basic_block_name, basic_block in module.named_children():
+    #             torch.quantization.fuse_modules(
+    #                 basic_block, [["conv_a", "bn_a", "relu_a"], ["conv_b", "bn_b"]],
+    #                 inplace=True)
+    #             for sub_block_name, sub_block in basic_block.named_children():
+    #                 if sub_block_name == "downsample":
+    #                     torch.quantization.fuse_modules(sub_block,
+    #                                                     [["0", "1"]],
+    #                                                     inplace=True)
+
     for module_name, module in fused_model.named_children():
-        if "layer" in module_name:
+        if "stage" in module_name:
             for basic_block_name, basic_block in module.named_children():
                 torch.quantization.fuse_modules(
-                    basic_block, [["conv1", "bn1", "relu1"], ["conv2", "bn2"]],
-                    inplace=True)
-                for sub_block_name, sub_block in basic_block.named_children():
-                    if sub_block_name == "downsample":
-                        torch.quantization.fuse_modules(sub_block,
-                                                        [["0", "1"]],
-                                                        inplace=True)
+                        basic_block, [["conv_a", "bn_a", "relu_a"], ["conv_b", "bn_b"]],
+                        inplace=True)
+
+
 
     # Print FP32 model.
     print(model)
@@ -435,7 +448,7 @@ def main():
                 test_loader=test_loader,
                 device=cuda_device,
                 learning_rate=1e-3,
-                num_epochs=10)
+                num_epochs=0) 
     quantized_model.to(cpu_device)
 
     # Using high-level static quantization wrapper

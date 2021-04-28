@@ -24,6 +24,7 @@ class ResNetBasicblock(nn.Module):
         self.conv_a = nn.Conv2d(
             inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn_a = nn.BatchNorm2d(planes)
+        self.relu_a = nn.ReLU(inplace=True)
 
         self.conv_b = nn.Conv2d(
             planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
@@ -31,12 +32,17 @@ class ResNetBasicblock(nn.Module):
 
         self.downsample = downsample
 
+        # change for quantization
+        self.skip_add = nn.quantized.FloatFunctional()
+        self.relu_b = nn.ReLU(inplace=True)
+
+
     def forward(self, x):
         residual = x
 
         basicblock = self.conv_a(x)
         basicblock = self.bn_a(basicblock)
-        basicblock = F.relu(basicblock, inplace=True)
+        basicblock = self.relu_a(basicblock)
 
         basicblock = self.conv_b(basicblock)
         basicblock = self.bn_b(basicblock)
@@ -44,7 +50,11 @@ class ResNetBasicblock(nn.Module):
         if self.downsample is not None:
             residual = self.downsample(x)
 
-        return F.relu(residual + basicblock, inplace=True)
+        # return F.relu(residual + basicblock, inplace=True)
+        
+        # change for quantization
+        basicblock = self.skip_add.add(residual, basicblock)
+        return self.relu_b(basicblock)
 
 
 class CifarResNet(nn.Module):
@@ -63,6 +73,7 @@ class CifarResNet(nn.Module):
         self.conv_1_3x3 = nn.Conv2d(
             3, 16, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn_1 = nn.BatchNorm2d(16)
+        self.relu = nn.ReLU(inplace=True)
 
         self.inplanes = 16
         self.stage_1 = self._make_layer(block, 16, layer_blocks, 1)
@@ -99,7 +110,7 @@ class CifarResNet(nn.Module):
 
     def forward(self, x):
         x = self.conv_1_3x3(x)
-        x = F.relu(self.bn_1(x), inplace=True)
+        x = self.relu(self.bn_1(x))
         x = self.stage_1(x)
         x = self.stage_2(x)
         x = self.stage_3(x)
